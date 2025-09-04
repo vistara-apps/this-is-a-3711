@@ -8,7 +8,6 @@ import ProgressIndicator from '../components/ProgressIndicator'
 import CreativeCard from '../components/CreativeCard'
 import AnalyticsDashboard from '../components/AnalyticsDashboard'
 import AuthModal from '../components/AuthModal'
-import LoadingSpinner from '../components/LoadingSpinner'
 import { generateAdVariations } from '../lib/openai'
 import { campaignAPI, variationAPI, userAPI, uploadAPI } from '../lib/api'
 import { subscriptionUtils } from '../lib/stripe'
@@ -251,6 +250,16 @@ const Dashboard = () => {
   // Usage stats display
   const UsageDisplay = () => {
     const features = subscriptionUtils.getSubscriptionFeatures(subscriptionTier)
+    const remainingGenerations = subscriptionUtils.getRemainingUsage(
+      subscriptionTier, 
+      'generation', 
+      usageStats.generations
+    )
+    const remainingPosts = subscriptionUtils.getRemainingUsage(
+      subscriptionTier, 
+      'post', 
+      usageStats.posts
+    )
 
     return (
       <div className="bg-surface rounded-lg p-4 border border-gray-700">
@@ -386,188 +395,153 @@ const Dashboard = () => {
     </div>
   )
 
-  const renderCampaignDetails = () => (
-    <div className="space-y-6">
-      <div className="grid lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <ImageUploader
-            onImageUpload={handleImageUpload}
-            uploadedImage={uploadedImage}
-            onRemoveImage={handleRemoveImage}
-          />
+  if (step === 2) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-text-primary mb-2">Campaign Details</h1>
+          <p className="text-text-secondary">Provide details about your product and select target platforms</p>
+        </div>
 
-          <div className="card p-6">
-            <h3 className="text-lg font-medium text-text-primary mb-4">Product Description</h3>
-            <textarea
-              value={productDescription}
-              onChange={(e) => setProductDescription(e.target.value)}
-              placeholder="Describe your product, its benefits, target audience, and key selling points..."
-              className="input w-full h-32 resize-none"
-              maxLength={500}
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <ImageUploader
+              onImageUpload={handleImageUpload}
+              uploadedImage={uploadedImage}
+              onRemoveImage={handleRemoveImage}
             />
-            <div className="flex justify-between mt-2 text-sm text-text-secondary">
-              <span>Provide detailed context for better AI generation</span>
-              <span>{productDescription.length}/500</span>
+
+            <div className="card p-6">
+              <h3 className="text-lg font-medium text-text-primary mb-4">Product Description</h3>
+              <textarea
+                value={productDescription}
+                onChange={(e) => setProductDescription(e.target.value)}
+                placeholder="Describe your product, its benefits, target audience, and key selling points..."
+                className="input w-full h-32 resize-none"
+                maxLength={500}
+              />
+              <div className="flex justify-between mt-2 text-sm text-text-secondary">
+                <span>Provide detailed context for better AI generation</span>
+                <span>{productDescription.length}/500</span>
+              </div>
             </div>
+
+            <PlatformSelector
+              selectedPlatforms={selectedPlatforms}
+              onPlatformToggle={handlePlatformToggle}
+            />
           </div>
 
-          <PlatformSelector
-            selectedPlatforms={selectedPlatforms}
-            onPlatformToggle={handlePlatformToggle}
-          />
-        </div>
+          <div className="space-y-6">
+            <div className="card p-6">
+              <h3 className="text-lg font-medium text-text-primary mb-4">Generation Preview</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Platforms</span>
+                  <span className="text-text-primary">{selectedPlatforms.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Variations</span>
+                  <span className="text-text-primary">{selectedPlatforms.length * 3}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Est. Time</span>
+                  <span className="text-text-primary">~30 seconds</span>
+                </div>
+              </div>
+            </div>
 
-        <div className="space-y-6">
-          <div className="card p-6">
-            <h3 className="text-lg font-medium text-text-primary mb-4">Generation Preview</h3>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Platforms</span>
-                <span className="text-text-primary">{selectedPlatforms.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Variations</span>
-                <span className="text-text-primary">{selectedPlatforms.length * 3}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Est. Time</span>
-                <span className="text-text-primary">~30 seconds</span>
-              </div>
+              <button
+                onClick={handleGenerate}
+                disabled={!productDescription.trim() || selectedPlatforms.length === 0}
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate Ad Variations
+              </button>
+              
+              <button
+                onClick={resetWorkflow}
+                className="btn-secondary w-full"
+              >
+                Start Over
+              </button>
             </div>
           </div>
+        </div>
+      </div>
+    )
+  }
 
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setStep(1)}
-              className="btn-secondary flex-1"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleGenerate}
-              disabled={!productDescription.trim() || selectedPlatforms.length === 0}
-              className="btn-primary flex-1"
-            >
-              Generate Ads
-            </button>
+  if (step === 3) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-text-primary mb-2">Generating Your Ads</h1>
+          <p className="text-text-secondary">AI is creating optimized ad variations for your campaign</p>
+        </div>
+
+        <div className="max-w-2xl mx-auto">
+          <ProgressIndicator
+            steps={generationSteps}
+            currentStep={currentGenerationStep}
+            variant="loading"
+          />
+          
+          <div className="mt-8 text-center">
+            <div className="inline-flex items-center px-4 py-2 bg-primary/10 border border-primary/20 rounded-lg">
+              <Zap className="w-4 h-4 text-primary mr-2" />
+              <span className="text-primary text-sm font-medium">AI Working...</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
-  const renderGenerating = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-text-primary mb-2">Generating Your Ads</h2>
-        <p className="text-text-secondary">AI is creating compelling variations for your campaign</p>
-      </div>
-
-      <div className="max-w-2xl mx-auto">
-        <ProgressIndicator
-          steps={generationSteps}
-          currentStep={currentGenerationStep}
-          isLoading={isGenerating}
-        />
-      </div>
-    </div>
-  )
-
-  const renderResults = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-text-primary mb-2">Campaign Generated!</h2>
-          <p className="text-text-secondary">Your AI-powered ad variations are ready</p>
-        </div>
-        <button
-          onClick={resetWorkflow}
-          className="btn-secondary flex items-center"
-        >
-          <Plus size={18} className="mr-2" />
-          New Campaign
-        </button>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {adVariations.map((variation) => (
-          <CreativeCard
-            key={variation.id}
-            variation={variation}
-            onPost={() => handlePostVariation(variation.id)}
-          />
-        ))}
-      </div>
-
-      {adVariations.length === 0 && (
-        <div className="text-center py-12">
-          <Sparkles size={48} className="mx-auto text-text-secondary mb-4" />
-          <h3 className="text-lg font-medium text-text-primary mb-2">No variations generated</h3>
-          <p className="text-text-secondary mb-4">Something went wrong during generation</p>
-          <button
-            onClick={() => setStep(2)}
-            className="btn-primary"
-          >
-            Try Again
-          </button>
-        </div>
-      )}
-    </div>
-  )
-
-  return (
-    <div className="max-w-6xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-text-primary mb-2">
-              AdSpark AI Dashboard
-            </h1>
-            <p className="text-text-secondary">
-              Create, manage, and analyze your AI-powered ad campaigns
-            </p>
+  if (step === 4) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-text-primary mb-2">Generated Ad Variations</h1>
+              <p className="text-text-secondary">Review and post your AI-generated ad variations</p>
+            </div>
+            <button
+              onClick={resetWorkflow}
+              className="btn-secondary"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create New Campaign
+            </button>
           </div>
-          {user && <UsageDisplay />}
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex space-x-2 mb-6">
-          <TabButton
-            id="create"
-            label="Create Campaign"
-            icon={Plus}
-            isActive={activeTab === 'create'}
-            onClick={setActiveTab}
-          />
-          <TabButton
-            id="campaigns"
-            label="My Campaigns"
-            icon={Zap}
-            isActive={activeTab === 'campaigns'}
-            onClick={setActiveTab}
-          />
-          <TabButton
-            id="analytics"
-            label="Analytics"
-            icon={BarChart3}
-            isActive={activeTab === 'analytics'}
-            onClick={setActiveTab}
-          />
+        <div className="grid lg:grid-cols-3 gap-6">
+          {adVariations.map((variation) => (
+            <CreativeCard
+              key={variation.id}
+              variation={variation}
+              onPost={handlePostVariation}
+              variant="generated"
+            />
+          ))}
         </div>
+
+        {adVariations.length === 0 && (
+          <div className="text-center py-12">
+            <Sparkles className="w-12 h-12 text-text-secondary mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-text-primary mb-2">No variations generated yet</h3>
+            <p className="text-text-secondary">Start by uploading a product image and creating your first campaign.</p>
+          </div>
+        )}
       </div>
+    )
+  }
 
-      {/* Tab Content */}
-      {renderTabContent()}
-
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        defaultMode="signin"
-      />
-    </div>
-  )
+  return null
 }
 
 export default Dashboard

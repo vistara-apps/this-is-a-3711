@@ -118,3 +118,73 @@ export const generateImagePrompt = async (productDescription, platform, adCopy) 
     return `Professional product photography of ${productDescription}, clean white background, studio lighting, high quality, ${platform} style composition, vibrant colors, modern aesthetic`
   }
 }
+
+export const generateAdImage = async (prompt, size = '1024x1024') => {
+  try {
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: size,
+      quality: "standard",
+      style: "vivid"
+    })
+
+    return {
+      url: response.data[0].url,
+      revised_prompt: response.data[0].revised_prompt
+    }
+  } catch (error) {
+    console.error('Error generating image:', error)
+    throw new Error('Failed to generate image. Please try again.')
+  }
+}
+
+export const generateAdVariations = async (productDescription, platform, uploadedImageUrl = null) => {
+  try {
+    // Generate ad copy variations
+    const adCopyVariations = await generateAdCopy(
+      productDescription,
+      platform,
+      uploadedImageUrl ? 'User uploaded product image' : 'No image provided'
+    )
+
+    const variations = []
+
+    for (let i = 0; i < adCopyVariations.length; i++) {
+      const copyVariation = adCopyVariations[i]
+      let imageUrl = uploadedImageUrl
+      let imagePrompt = null
+
+      // Generate new image if no uploaded image or if we want variations
+      if (!uploadedImageUrl || i > 0) {
+        try {
+          imagePrompt = await generateImagePrompt(productDescription, platform, copyVariation.copy)
+          const imageResult = await generateAdImage(imagePrompt, '1024x1024')
+          imageUrl = imageResult.url
+        } catch (imageError) {
+          console.warn('Failed to generate image for variation', i, imageError)
+          // Use uploaded image as fallback
+          imageUrl = uploadedImageUrl
+        }
+      }
+
+      variations.push({
+        id: `${platform}-${i + 1}-${Date.now()}`,
+        platform,
+        copy: copyVariation.copy,
+        hashtags: copyVariation.hashtags,
+        tone: copyVariation.tone,
+        imageUrl,
+        imagePrompt,
+        postStatus: null,
+        generatedAt: new Date().toISOString()
+      })
+    }
+
+    return variations
+  } catch (error) {
+    console.error('Error generating ad variations:', error)
+    throw new Error('Failed to generate ad variations. Please try again.')
+  }
+}
